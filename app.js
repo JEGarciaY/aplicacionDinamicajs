@@ -1,5 +1,4 @@
-
-const STORAGE_KEY = 'contacts_v2';
+const STORAGE_KEY = 'contacts_v3';
 
 const contactForm = document.getElementById('contact-form');
 const inputId = document.getElementById('contact-id');
@@ -12,16 +11,18 @@ const noContacts = document.getElementById('no-contacts');
 const searchInput = document.getElementById('search');
 const clearAllBtn = document.getElementById('clear-all');
 const cancelBtn = document.getElementById('cancel-btn');
+const formHeader = document.getElementById('form-header');
+const saveBtn = document.getElementById('save-btn');
 
 let contacts = [];
 let editingId = null;
+let locked = false;
 
 function loadContacts() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     contacts = raw ? JSON.parse(raw) : [];
-  } catch (e) {
-    console.error('Error leyendo localStorage', e);
+  } catch {
     contacts = [];
   }
 }
@@ -31,12 +32,16 @@ function saveContacts() {
 }
 
 function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 }
+
+inputPhone.addEventListener('input', () => {
+  inputPhone.value = inputPhone.value.replace(/\D/g, '');
+});
 
 function renderContacts(filter = '') {
   const q = filter.trim().toLowerCase();
-  const visible = contacts.filter(c => 
+  const visible = contacts.filter(c =>
     !q ||
     c.name.toLowerCase().includes(q) ||
     c.email.toLowerCase().includes(q) ||
@@ -58,15 +63,20 @@ function renderContacts(filter = '') {
       <td>${contact.email}</td>
       <td>${contact.phone}</td>
       <td>
-        <button class="action-btn edit-btn" onclick="startEdit('${contact.id}')">Editar</button>
-        <button class="action-btn delete-btn" onclick="removeContact('${contact.id}')">Eliminar</button>
+        <button class="btn btn-warning btn-sm me-2" onclick="startEdit('${contact.id}')" ${locked ? 'disabled' : ''}>
+          <i class="bi bi-pencil-square"></i> Editar
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="removeContact('${contact.id}')" ${locked ? 'disabled' : ''}>
+          <i class="bi bi-trash3"></i> Eliminar
+        </button>
       </td>
     `;
+    if (editingId === contact.id) tr.classList.add('editing-row');
     contactsTbody.appendChild(tr);
   }
 }
 
-function addContact({name, email, phone}) {
+function addContact({ name, email, phone }) {
   contacts.unshift({
     id: generateId(),
     name: name.trim(),
@@ -78,7 +88,7 @@ function addContact({name, email, phone}) {
   clearForm();
 }
 
-function updateContact(id, {name, email, phone}) {
+function updateContact(id, { name, email, phone }) {
   const idx = contacts.findIndex(c => c.id === id);
   if (idx === -1) return;
   contacts[idx] = { ...contacts[idx], name, email, phone };
@@ -88,6 +98,7 @@ function updateContact(id, {name, email, phone}) {
 }
 
 function removeContact(id) {
+  if (locked) return;
   const contact = contacts.find(c => c.id === id);
   if (!contact) return;
   if (!confirm(`¿Eliminar contacto "${contact.name}"?`)) return;
@@ -105,21 +116,30 @@ function removeAllContacts() {
 }
 
 function startEdit(id) {
+  if (locked) return;
   const c = contacts.find(ct => ct.id === id);
   if (!c) return;
   editingId = id;
+  locked = true;
   inputId.value = id;
   inputName.value = c.name;
   inputEmail.value = c.email;
   inputPhone.value = c.phone;
-  document.getElementById('save-btn').textContent = 'Actualizar';
+  saveBtn.textContent = 'Actualizar';
+  formHeader.textContent = 'Editando Contacto';
+  formHeader.classList.replace('bg-primary', 'bg-warning');
+  renderContacts(searchInput.value);
 }
 
 function clearForm() {
   editingId = null;
+  locked = false;
   inputId.value = '';
   contactForm.reset();
-  document.getElementById('save-btn').textContent = 'Guardar';
+  saveBtn.textContent = 'Agregar';
+  formHeader.textContent = 'Agregar Contacto';
+  formHeader.classList.replace('bg-warning', 'bg-primary');
+  renderContacts(searchInput.value);
 }
 
 contactForm.addEventListener('submit', (e) => {
@@ -129,8 +149,8 @@ contactForm.addEventListener('submit', (e) => {
   const phone = inputPhone.value.trim();
   if (!name || !email || !phone) return alert('Completa todos los campos.');
 
-  if (editingId) updateContact(editingId, {name, email, phone});
-  else addContact({name, email, phone});
+  if (editingId) updateContact(editingId, { name, email, phone });
+  else addContact({ name, email, phone });
 });
 
 cancelBtn.onclick = clearForm;
